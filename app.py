@@ -33,7 +33,8 @@ def obter_dados():
         return []
         
 if not dados:
-    st.warning("⚠️ Não conseguiu pegar dados do site")
+  dados = obter_dados()
 
-    # dados fake para não quebrar
+if not dados:
+    st.warning("⚠️ Não conseguiu pegar dados do site")
     dados = [1.2, 1.5, 2.0, 1.1, 3.2, 1.3, 2.5, 1.8, 1.4, 2.2]

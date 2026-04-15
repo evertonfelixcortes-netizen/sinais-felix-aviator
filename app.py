@@ -1,26 +1,75 @@
 import streamlit as st
 import numpy as np
+import requests
+from bs4 import BeautifulSoup
 from sklearn.ensemble import RandomForestClassifier
+import json
+import os
 
 st.set_page_config(page_title="Sinais do Felix-Aviator", layout="centered")
 
 st.title("🚀 Sinais do Felix-Aviator")
 
-st.write("Cole os últimos resultados (ex: 1.2, 2.5, 1.8)")
+ARQUIVO = "dados.json"
 
 # =============================
-# ENTRADA MANUAL (SEM ERRO)
+# PEGAR DADOS DO SITE
 # =============================
-entrada = st.text_area("📋 Resultados:")
+def pegar_site():
+    url = "https://www.tipminer.com/br/historico/sortenabet/aviator"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-if not entrada:
-    st.warning("⚠️ Cole os dados para começar")
-    st.stop()
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-try:
-    dados = [float(x.strip()) for x in entrada.split(",")]
-except:
-    st.error("❌ Formato errado. Use: 1.2, 2.5, 1.8")
+        spans = soup.find_all("span")
+        valores = []
+
+        for s in spans:
+            txt = s.text.replace("x", "").strip()
+            try:
+                v = float(txt)
+                if 1 <= v <= 100:
+                    valores.append(v)
+            except:
+                pass
+
+        return valores[:200]
+
+    except:
+        return []
+
+# =============================
+# SALVAR DADOS
+# =============================
+def salvar(dados):
+    with open(ARQUIVO, "w") as f:
+        json.dump(dados, f)
+
+# =============================
+# CARREGAR DADOS SALVOS
+# =============================
+def carregar():
+    if os.path.exists(ARQUIVO):
+        with open(ARQUIVO, "r") as f:
+            return json.load(f)
+    return []
+
+# =============================
+# OBTER DADOS (INTELIGENTE)
+# =============================
+dados = pegar_site()
+
+if dados:
+    salvar(dados)
+    st.success("✅ Dados atualizados do site")
+else:
+    dados = carregar()
+    st.warning("⚠️ Usando dados salvos (site bloqueou)")
+
+if not dados:
+    st.error("❌ Nenhum dado disponível")
     st.stop()
 
 # =============================
@@ -43,13 +92,9 @@ def treinar(dados):
     modelo.fit(X, y)
     return modelo
 
-if len(dados) < 10:
-    st.warning("⚠️ Use pelo menos 10 valores")
-    st.stop()
-
 modelo = treinar(dados)
 
-ultimos = dados[-5:]
+ultimos = dados[:5]
 
 # =============================
 # SINAL
@@ -58,17 +103,14 @@ if st.button("🔮 GERAR SINAL"):
     pred = modelo.predict([ultimos])[0]
 
     if pred == 2:
-        st.error("🔥 ALTA CHANCE DE 10x (RISCO ALTO)")
+        st.error("🔥 Possível 10x (alto risco)")
     elif pred == 1:
-        st.success("🟢 ENTRAR - BUSCAR 2x")
+        st.success("🟢 Entrar (2x–5x)")
     else:
-        st.warning("🔴 EVITAR ESSA RODADA")
+        st.warning("🔴 Evitar")
 
 # =============================
-# ESTATÍSTICAS
+# INFO
 # =============================
-st.write("📊 Últimos dados:")
-st.write(dados[-10:])
-
-st.write(f"Média: {np.mean(dados):.2f}x")
-st.write(f"Maior valor: {max(dados)}x")
+st.write("📊 Últimos resultados:")
+st.write(dados[:20])

@@ -1,55 +1,44 @@
 import streamlit as st
 import numpy as np
-import json
-import os
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from sklearn.ensemble import RandomForestClassifier
+import time
 
-st.set_page_config(page_title="Felix Aviator PRO", layout="centered")
-
-st.title("🚀 Felix Aviator PRO (Nível Máximo)")
-
-ARQ = "historico.json"
+st.title("🚀 Felix Aviator AUTO (Nível Máximo)")
 
 # =============================
-# SALVAR DADOS
+# PEGAR DADOS AUTOMÁTICO REAL
 # =============================
-def salvar(dados):
-    with open(ARQ, "w") as f:
-        json.dump(dados, f)
+def pegar_dados():
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+    driver.get("https://www.tipminer.com/br/historico/sortenabet/aviator")
 
-# =============================
-# CARREGAR DADOS
-# =============================
-def carregar():
-    if os.path.exists(ARQ):
-        with open(ARQ, "r") as f:
-            return json.load(f)
-    return []
+    time.sleep(5)
 
-dados = carregar()
+    spans = driver.find_elements("tag name", "span")
 
-# =============================
-# ENTRADA AUTOMÁTICA (manual assistida)
-# =============================
-st.subheader("📥 Inserir novo resultado")
+    valores = []
 
-novo = st.text_input("Digite último resultado (ex: 1.8)")
+    for s in spans:
+        txt = s.text.replace("x","").strip()
+        try:
+            v = float(txt)
+            if 1 <= v <= 100:
+                valores.append(v)
+        except:
+            pass
 
-if st.button("Adicionar resultado"):
-    try:
-        v = float(novo)
-        dados.insert(0, v)
-        salvar(dados)
-        st.success("Adicionado com sucesso")
-    except:
-        st.error("Valor inválido")
+    driver.quit()
+    return valores[:200]
 
 # =============================
 # IA
 # =============================
 def treinar(dados):
     X, y = [], []
-    
+
     for i in range(10, len(dados)):
         X.append(dados[i-10:i])
 
@@ -64,51 +53,29 @@ def treinar(dados):
     modelo.fit(X, y)
     return modelo
 
-if len(dados) < 20:
-    st.warning("⚠️ Adicione pelo menos 20 resultados")
-    st.stop()
-
-modelo = treinar(dados)
-
-ultimos = dados[:10]
-
 # =============================
-# DETECTOR DE PADRÃO
+# EXECUÇÃO
 # =============================
-def padrao(d):
-    baixos = sum(1 for x in d[:10] if x < 1.5)
-    altos = sum(1 for x in d[:10] if x > 5)
+if st.button("🔄 ATUALIZAR DADOS AUTOMÁTICO"):
+    dados = pegar_dados()
 
-    if baixos >= 6:
-        return "SUBIDA"
-    elif altos >= 3:
-        return "QUEDA"
-    return "NEUTRO"
+    if not dados:
+        st.error("Erro ao pegar dados")
+        st.stop()
 
-# =============================
-# SINAL
-# =============================
-if st.button("🔮 GERAR SINAL PRO"):
-    p = modelo.predict([ultimos])[0]
-    pad = padrao(dados)
+    st.success(f"{len(dados)} dados capturados")
 
-    if p == 2 and pad == "SUBIDA":
-        st.error("🔥🔥 SINAL FORTE (10x)")
-    elif p == 1:
-        st.success("🟢 ENTRAR (2x seguro)")
-    elif pad == "QUEDA":
-        st.warning("🔴 EVITAR")
+    modelo = treinar(dados)
+
+    ultimos = dados[:10]
+
+    pred = modelo.predict([ultimos])[0]
+
+    if pred == 2:
+        st.error("🔥 Buscar 10x")
+    elif pred == 1:
+        st.success("🟢 Entrar (2x)")
     else:
-        st.info("⚠️ AGUARDAR")
+        st.warning("🔴 Evitar")
 
-# =============================
-# DASHBOARD
-# =============================
-st.subheader("📊 Estatísticas")
-
-st.write(f"Média: {np.mean(dados):.2f}x")
-st.write(f"Maior: {max(dados)}x")
-st.write(f"Total: {len(dados)}")
-
-st.write("Últimos 15:")
-st.write(dados[:15])
+    st.write(dados[:20])
